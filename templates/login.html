@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Vault - Login</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #1a1a1a; color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .box { background: #2a2a2a; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); width: 320px; }
+        input[type="email"], input[type="password"], input[type="text"] { width: 93%; padding: 10px; margin: 10px 0; border-radius: 4px; border: 1px solid #444; background: #333; color: white; }
+        button { width: 100%; padding: 10px; border: none; border-radius: 4px; background: #007bff; color: white; cursor: pointer; font-size: 16px; margin-top: 10px;}
+        button:hover { background: #0056b3; }
+        .toggle-link { text-align: center; margin-top: 15px; font-size: 14px; color: #bbb; cursor: pointer; }
+        .error { color: #dc3545; text-align: center; margin-bottom: 10px; font-weight: bold; }
+        .show-pass-container { font-size: 14px; display: flex; align-items: center; margin-bottom: 10px; }
+        .show-pass-container input { width: auto; margin-right: 8px; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h2 id="title">Login to Vault</h2>
+        
+        {% if error %} <div class="error">{{ error }}</div> {% endif %}
+
+        <form id="authForm" action="/login" method="POST" onsubmit="return validateForm()">
+            <input type="email" name="email" placeholder="Email Address" required>
+            
+            <input type="password" name="password" id="mainPass" placeholder="Password" required>
+            
+            <input type="password" name="confirm_password" id="confirmPass" placeholder="Confirm Password" style="display: none;">
+            
+            <div class="show-pass-container">
+                <input type="checkbox" onclick="toggleViewPassword()"> Show Password
+            </div>
+
+            <button type="submit" id="btn">Sign In</button>
+        </form>
+        <div class="toggle-link" id="toggle" onclick="toggleAuth()">Don't have an account? Register here</div>
+    </div>
+
+    <script>
+        let isRegistering = false;
+
+        function toggleAuth() {
+            const form = document.getElementById('authForm');
+            const title = document.getElementById('title');
+            const btn = document.getElementById('btn');
+            const toggle = document.getElementById('toggle');
+            const confirmPass = document.getElementById('confirmPass');
+            
+            isRegistering = !isRegistering;
+
+            if (isRegistering) {
+                form.action = '/register';
+                title.innerText = 'Create Account';
+                btn.innerText = 'Register';
+                toggle.innerText = 'Already have an account? Login here';
+                confirmPass.style.display = 'block';
+                confirmPass.required = true;
+            } else {
+                form.action = '/login';
+                title.innerText = 'Login to Vault';
+                btn.innerText = 'Sign In';
+                toggle.innerText = "Don't have an account? Register here";
+                confirmPass.style.display = 'none';
+                confirmPass.required = false;
+            }
+        }
+
+        function toggleViewPassword() {
+            const mainPass = document.getElementById('mainPass');
+            const confirmPass = document.getElementById('confirmPass');
+            const type = mainPass.type === 'password' ? 'text' : 'password';
+            mainPass.type = type;
+            confirmPass.type = type;
+        }
+
+        function validateForm() {
+            if (isRegistering) {
+                const pass = document.getElementById('mainPass').value;
+                const conf = document.getElementById('confirmPass').value;
+                if (pass !== conf) {
+                    alert("Passwords do not match!");
+                    return false; // Prevents form submission
+                }
+            }
+            return true;
+        }
+    </script>
+</body>
+</html>
