@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Secure Vault</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #121212; color: #e0e0e0; margin: 20px; }
+        .container { max-width: 900px; margin: 0 auto; }
+        header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        a { color: #ff5555; text-decoration: none; }
+        .form-box { background: #1e1e1e; padding: 20px; border-radius: 6px; margin: 20px 0; }
+        input { padding: 8px; margin-right: 10px; background: #2a2a2a; border: 1px solid #444; color: white; border-radius: 4px; margin-bottom: 10px;}
+        button { padding: 8px 15px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #333; }
+        th { background: #1e1e1e; }
+        .btn-action { padding: 4px 8px; font-size: 12px; background: #555; border: none; color: white; border-radius: 3px; cursor: pointer; margin-right: 5px; }
+        .btn-delete { background: #dc3545; }
+        
+        .tool-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px;}
+        #strength-text { font-size: 13px; font-weight: bold;}
+        .weak { color: #dc3545; } .medium { color: #ffc107; } .strong { color: #28a745; }
+        #gen-btn { background: #6f42c1; font-size: 12px; padding: 6px 10px; }
+
+        /* Pop-up Modal Styles */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-box { background: #2a2a2a; padding: 30px; border-radius: 8px; width: 300px; text-align: center; border: 1px solid #444; }
+        .modal-box h3 { color: #dc3545; margin-top: 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h2>Secure Password Vault</h2>
+            <div>Logged in as: <strong>{{ email }}</strong> | <a href="/logout">Logout</a></div>
+        </header>
+
+        <div class="form-box">
+            <h3>Add New Credential</h3>
+            <form action="/credentials" method="POST">
+                <input type="text" name="site" placeholder="Website" required>
+                <input type="text" name="username" placeholder="Username/Email" required>
+                
+                <input type="password" name="password" id="vaultPass" placeholder="Password" required oninput="checkStrength()">
+                
+                <div class="tool-bar">
+                    <span id="strength-text"></span>
+                    <button type="button" id="gen-btn" onclick="generatePassword()">Generate Strong Password</button>
+                </div>
+                <button type="submit">Save Securely</button>
+            </form>
+        </div>
+
+        <h3>Your Stored Credentials</h3>
+        <table>
+            <thead><tr><th>Website</th><th>Username</th><th>Password</th><th>Actions</th></tr></thead>
+            <tbody id="vaultTable"></tbody>
+        </table>
+    </div>
+
+    <div class="modal-overlay" id="unlockModal">
+        <div class="modal-box">
+            <h3>Vault Locked</h3>
+            <p style="font-size: 14px; color: #bbb;">Verify your master password to interact with credentials.</p>
+            <p id="unlockError" style="color: #ff5555; font-weight: bold; font-size: 14px;"></p>
+            
+            <form onsubmit="unlockVault(event)">
+                <input type="password" id="masterPass" placeholder="Master Password" style="width: 85%; margin-bottom: 15px;" required>
+                <button type="submit" style="width: 100%; background: #dc3545;">Unlock Session</button>
+                <button type="button" onclick="closeModal()" style="width: 100%; background: #555; margin-top: 10px;">Cancel</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let isVaultUnlocked = {{ 'true' if vault_unlocked else 'false' }};
+
+        async function loadVault() {
+            const response = await fetch('/credentials');
+            const credentials = await response.json();
+            const tableBody = document.getElementById('vaultTable');
+            tableBody.innerHTML = '';
+
+            credentials.forEach(cred => {
+                const row = document.createElement('tr');
+
+                // 1. Create and populate Website cell securely
+                const tdSite = document.createElement('td');
+                const strongSite = document.createElement('strong');
+                strongSite.textContent = cred.site; // Secure text assignment
+                tdSite.appendChild(strongSite);
+
+                // 2. Create and populate Username cell securely
+                const tdUser = document.createElement('td');
+                tdUser.textContent = cred.username; // Secure text assignment
+
+                // 3. Create Password Input element securely
+                const tdPass = document.createElement('td');
+                const passInput = document.createElement('input');
+                passInput.type = 'password';
+                passInput.value = cred.password; // Secure text assignment
+                passInput.id = `pass-${cred.id}`;
+                passInput.readOnly = true;
+                passInput.style.cssText = "border:none; background:transparent; color:white; width:120px; margin:0;";
+                tdPass.appendChild(passInput);
+
+                // 4. Create Action buttons securely
+                const tdActions = document.createElement('td');
+                
+                const showBtn = document.createElement('button');
+                showBtn.className = 'btn-action';
+                showBtn.textContent = 'Show';
+                showBtn.onclick = () => handleAction('show', cred.id);
+
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'btn-action';
+                copyBtn.textContent = 'Copy';
+                copyBtn.onclick = () => handleAction('copy', cred.id);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'btn-action btn-delete';
+                deleteBtn.textContent = 'Delete';
+                deleteBtn.onclick = () => handleAction('delete', cred.id);
+
+                tdActions.appendChild(showBtn);
+                tdActions.appendChild(copyBtn);
+                tdActions.appendChild(deleteBtn);
+
+                // Assemble row components together
+                row.appendChild(tdSite);
+                row.appendChild(tdUser);
+                row.appendChild(tdPass);
+                row.appendChild(tdActions);
+
+                tableBody.appendChild(row);
+            });
+        }
+
+        function handleAction(actionType, id) {
+            if (!isVaultUnlocked) {
+                document.getElementById('unlockModal').style.display = 'flex';
+                return;
+            }
+            if (actionType === 'show') togglePassword(id);
+            if (actionType === 'copy') copyPassword(id);
+            if (actionType === 'delete') deleteCred(id);
+        }
+
+        async function unlockVault(event) {
+            event.preventDefault();
+            const pass = document.getElementById('masterPass').value;
+            
+            const response = await fetch('/api/unlock', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: pass })
+            });
+
+            if (response.ok) {
+                isVaultUnlocked = true;
+                closeModal();
+                alert("Vault Unlocked!");
+                loadVault();
+            } else {
+                document.getElementById('unlockError').innerText = "Incorrect Master Password!";
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('unlockModal').style.display = 'none';
+            document.getElementById('masterPass').value = '';
+            document.getElementById('unlockError').innerText = '';
+        }
+
+        function togglePassword(id) {
+            const input = document.getElementById(`pass-${id}`);
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+
+        function copyPassword(id) {
+            const input = document.getElementById(`pass-${id}`);
+            input.type = 'text'; navigator.clipboard.writeText(input.value); input.type = 'password';
+            alert("Copied!");
+        }
+
+        async function deleteCred(id) {
+            if (confirm("Delete this credential?")) {
+                await fetch(`/credentials/${id}`, { method: 'DELETE' });
+                loadVault();
+            }
+        }
+
+        function checkStrength() {
+            const val = document.getElementById('vaultPass').value;
+            const text = document.getElementById('strength-text');
+            if (val.length === 0) { text.innerText = ""; return; }
+            let score = 0;
+            if (val.length > 7) score++; if (/[A-Z]/.test(val)) score++;
+            if (/[0-9]/.test(val)) score++; if (/[^A-Za-z0-9]/.test(val)) score++;
+            if (score < 2) { text.innerText = "Strength: Weak"; text.className = "weak"; } 
+            else if (score === 2) { text.innerText = "Strength: Medium"; text.className = "medium"; } 
+            else { text.innerText = "Strength: Strong"; text.className = "strong"; }
+        }
+
+        function generatePassword() {
+            const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+            let pass = "";
+            for (let i = 0; i < 16; i++) { pass += chars.charAt(Math.floor(Math.random() * chars.length)); }
+            document.getElementById('vaultPass').value = pass;
+            document.getElementById('vaultPass').type = "text"; 
+            checkStrength();
+        }
+
+        loadVault();
+    </script>
+</body>
+</html>
